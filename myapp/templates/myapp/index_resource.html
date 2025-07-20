@@ -1,0 +1,480 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Performance Metrics Dashboard</title>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> -->
+    <script src="{% static 'js/chart.js' %}"></script>
+    <style>
+      /* Global styling for dark theme */
+      body {
+        font-family: "Arial", sans-serif;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        min-height: 100vh;
+        background-color: #121212; /* Dark background */
+        color: #e0e0e0; /* Light text color */
+        overflow-x: hidden; /* Prevent horizontal scrolling */
+      }
+
+      /* Container styling */
+      .container {
+        width: 100%;
+        max-width: 1200px;
+        margin: 20px;
+        padding: 20px;
+        background-color: #1e1e1e; /* Darker container background */
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+      }
+
+      /* Header styling */
+      h1 {
+        text-align: center;
+        color: #03dac6; /* Accent color */
+        margin-bottom: 30px;
+        font-size: 2.5rem;
+        padding: 20px;
+        background-color: #272727; /* Subtle contrast for header */
+        border-radius: 8px;
+        word-wrap: break-word;
+      }
+
+      /* Flex layout for charts */
+      .charts-wrapper {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 20px;
+      }
+
+      /* Left column for individual charts */
+      .left-charts {
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+        width: 48%;
+      }
+
+      /* Right column for combined chart */
+      .right-chart {
+        width: 48%;
+      }
+
+      /* Chart container styling */
+      .chart-container {
+        width: 100%;
+        height: 400px;
+        border-radius: 8px;
+        background-color: #2e2e2e; /* Dark chart container background */
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        padding: 10px;
+      }
+
+      canvas {
+        width: 100% !important;
+        height: 100% !important;
+      }
+
+      /* Optimization metrics section styling */
+      .optimization-section {
+        padding: 10px;
+        background-color: #272727; /* Match dark theme */
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        margin-top: 20px;
+        width: 100% !important;
+      }
+
+      .optimization-section h2 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: #03dac6; /* Accent color */
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0 auto;
+        background-color: #1e1e1e; /* Darker table background */
+        color: #e0e0e0;
+      }
+
+      table th,
+      table td {
+        text-align: left;
+        padding: 12px;
+        border: 1px solid #333; /* Subtle borders */
+      }
+
+      table th {
+        background-color: #333; /* Darker header row */
+        color: #fff; /* White text for headers */
+      }
+
+      table tbody tr:nth-child(even) {
+        background-color: #2a2a2a;
+      }
+
+      table tbody tr:hover {
+        background-color: #383838;
+      }
+
+      /* Media Queries for responsiveness */
+      @media (max-width: 768px) {
+        .charts-wrapper {
+          flex-direction: column;
+        }
+
+        .left-charts,
+        .right-chart {
+          width: 100%;
+        }
+      }
+
+      /* Add transitions for smooth interactions */
+      .chart-container,
+      table tbody tr:hover,
+      h1 {
+        transition: background-color 0.3s, color 0.3s;
+      }
+
+      .chart-container:hover {
+        background-color: #393939; /* Highlight on hover */
+      }
+
+      .green-text {
+        color: green;
+      }
+      
+      .red-text {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Performance Metrics Dashboard</h1>
+
+      <div class="charts-wrapper">
+        <!-- Left column with CPU, RAM, and Disk Usage Charts -->
+        <div class="left-charts">
+          <div class="chart-container">
+            <canvas id="cpuChart"></canvas>
+          </div>
+          <div class="chart-container">
+            <canvas id="ramChart"></canvas>
+          </div>
+          <div class="chart-container">
+            <canvas id="diskChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Right column with Combined Resource Usage Chart -->
+        <div class="right-chart">
+          <div class="chart-container">
+            <canvas id="resourceBarChart"></canvas>
+          </div>
+
+          <!-- Optimization Metrics Section -->
+          <div class="optimization-section">
+            <h2>System Optimization Metrics</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Metric Name</th>
+                  <th>Metric Value</th>
+                  <th>Unit</th>
+                  <th>Recommended Value Range</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for metric_name, metric_value, unit, min_value, max_value in optimization_data %}
+                <tr>
+                  <td>{{ metric_name }}</td>
+                  <td class="{% if min_value == None or max_value == None %}
+                    green-text
+                  {% elif metric_value != None and min_value <= metric_value and metric_value <= max_value %}
+                      green-text
+                  {% else %}
+                      red-text
+                  {% endif %}">
+                  {{ metric_value }}
+                    </td>
+
+                  <td>{{ unit }}</td>
+                  <td>{{ min_value }} - {{ max_value }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+            // Data passed from Django
+            const metricsData = {{ processed_res_json|safe }};  // This is the JSON object passed from Django to the front end
+
+            // Sort metricsData by created_at (ascending order)
+            metricsData.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+            // Filter the latest 25 unique 5-minute intervals
+            const filteredMetrics = [];
+            let lastTimestamp = null;
+
+            for (let i = metricsData.length - 1; i >= 0; i--) { // Start from the latest
+              const item = metricsData[i];
+              const itemTimestamp = new Date(item.created_at).getTime();
+
+              // Include this item if it's from a different 5-minute interval than the last added item
+              if (!lastTimestamp || itemTimestamp < lastTimestamp - 5 * 60 * 1000) {
+                filteredMetrics.unshift(item); // Add to the start for chronological order
+                lastTimestamp = itemTimestamp;
+
+                // Stop once we have 25 unique 5-minute entries
+                if (filteredMetrics.length === 25) break;
+              }
+            }
+
+            // Prepare labels and datasets for charts using filteredMetrics
+            const labels = filteredMetrics.map(item => item.created_at); // Extract timestamps for labels
+            const cpuUsage = filteredMetrics.map(item => item.cpu_usage); // CPU Usage
+            const ramUsage = filteredMetrics.map(item => item.ram_usage); // RAM Usage
+            const diskUsage = filteredMetrics.map(item => item.disk_usage); // Disk Usage
+
+            // Check if there are any data rows
+            let dataRowsExist = metricsData && metricsData.length > 0;
+
+      // Create CPU Usage Chart
+      document.addEventListener('DOMContentLoaded', () => {
+        // Assume `has_data` is passed as a context variable from Django
+        const hasData = {{ has_data|yesno:"true,false" }}; // Convert Django boolean to JS boolean
+
+        // Create CPU Usage Chart
+        new Chart(document.getElementById('cpuChart'), {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'CPU Usage (%)',
+                data: cpuUsage,
+                borderColor: 'blue',
+                backgroundColor: 'rgba(0, 0, 255, 0.1)',
+                fill: true,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 100,
+                title: {
+                  display: true,
+                  text: 'Percentage',
+                },
+              },
+              x: {
+                title: {
+                  display: true,
+                  text: 'Time',
+                },
+              },
+            },
+            plugins: {
+              legend: {
+                labels: {
+                  generateLabels: function (chart) {
+                    const labels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                    labels.forEach((label) => {
+                      if (label.text === 'CPU Usage (%)') {
+                        // Set color based on the hasData flag
+                        label.fillStyle = hasData ? 'red' : 'green';
+                      }
+                    });
+                    return labels;
+                  },
+                },
+                onClick: (e, legendItem) => {
+                  if (legendItem.text === 'CPU Usage (%)') {
+                    // Open the grid view page in a new window/tab
+                    window.open('http://127.0.0.1:8000/cpu_usage_grid/', '_blank');
+                  }
+                },
+              },
+            },
+            onClick: (event, elements) => {
+        // Check if a data point was clicked
+        if (elements.length > 0) {
+          // Get the index of the clicked data point
+          const dataIndex = elements[0].index;
+
+          // Retrieve the label (timestamp) and CPU usage of the clicked point
+          const selectedTime = labels[dataIndex]; // This is the created_at
+          const selectedCpuUsage = cpuUsage[dataIndex]; // This is the CPU usage
+
+          // Pass the selected time and CPU usage as query parameters to the grid view page
+          const url = `http://127.0.0.1:8000/cpu_usage_grid/?timestamp=${encodeURIComponent(
+            selectedTime
+          )}&cpu_usage=${encodeURIComponent(selectedCpuUsage)}`;
+
+          // Open the grid view page in a new window/tab
+          window.open(url, "_blank");
+              }
+            },
+          },
+        });
+      });
+
+
+
+
+
+            // Create RAM Usage Chart
+           // Create RAM Usage Chart
+      new Chart(document.getElementById('ramChart'), {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'RAM Usage (%)',
+            data: ramUsage.map(value => value.toFixed(2)),  // Round to two decimal places
+            borderColor: 'green',
+            backgroundColor: 'rgba(0, 255, 0, 0.1)',
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              // Customizing the Y-axis scale
+              beginAtZero: false,  // Remove starting from 0 if it's not required
+              min: 0,              // Minimum value
+              max: 10,             // Adjust the maximum value to fit your data range
+              stepSize: 0.5,       // Set step size to 0.5 to create a more granular scale
+              title: {
+                display: true,
+                text: 'RAM Usage (%)'
+              },
+              ticks: {
+                // You can format the tick values for better presentation
+                callback: function(value) {
+                  return value.toFixed(1);  // Show one decimal place on the ticks
+                }
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Time'
+              }
+            }
+          }
+        }
+      });
+
+
+            // Create Disk Usage Chart
+            new Chart(document.getElementById('diskChart'), {
+              type: 'line',
+              data: {
+                labels: labels,
+                datasets: [{
+                  label: 'Disk Usage (%)',
+                  data: diskUsage,
+                  borderColor: 'red',
+                  backgroundColor: 'rgba(255, 0, 0, 0.1)',
+                  fill: true
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                      display: true,
+                      text: 'Percentage'
+                    }
+                  },
+                  x: {
+                    title: {
+                      display: true,
+                      text: 'Time'
+                    }
+                  }
+                }
+              }
+            });
+
+            // Get the latest data point for combined usage
+            const latestData = metricsData[metricsData.length - 1];
+
+            let combinedData = [
+              latestData.cpu_usage,
+              latestData.ram_usage,
+              latestData.cache_usage,
+              latestData.disk_usage
+            ];
+
+            // Create Combined Resource Usage Bar Chart
+            new Chart(document.getElementById('resourceBarChart'), {
+              type: 'bar',
+              data: {
+                labels: ['CPU Usage', 'RAM Usage', 'Cache Usage', 'Disk Usage'],
+                datasets: [{
+                  label: 'Current Usage (%)',
+                  data: combinedData,
+                  backgroundColor: [
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 206, 86, 0.6)'
+                  ],
+                  borderColor: [
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)'
+                  ],
+                  borderWidth: 1
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                      display: true,
+                      text: 'Usage (%)'
+                    }
+                  }
+                },
+                plugins: {
+                  legend: {
+                    display: false,
+                  }
+                }
+              }
+            });
+    </script>
+  </body>
+</html>

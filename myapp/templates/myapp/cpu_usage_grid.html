@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPU Usage Details</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f7f9fc;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .table-container {
+            width: 100%;
+            margin: 0 auto;
+            overflow-x: auto; /* Horizontal scroll for small screens */
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0 auto;
+            font-size: 0.9rem;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px 15px;
+            text-align: left;
+            white-space: nowrap; /* Prevent wrapping for data cells */
+        }
+        th {
+            background-color: #f4f4f4;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .no-data {
+            text-align: center;
+            color: #777;
+        }
+        .actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .search-input {
+            flex: 1;
+            max-width: 300px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .pagination button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            margin: 0 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .pagination button[disabled] {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .total-records {
+            text-align: center;
+            margin-top: 10px;
+        }
+        .download-btn {
+            background-color: #28a745;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .download-btn:hover {
+            background-color: #218838;
+        }
+    </style>
+    <!-- Include SheetJS Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <h1>CPU Usage Details</h1>
+    <div class="table-container">
+        <div class="actions">
+            <!-- Search Input -->
+            <input 
+                type="text" 
+                id="searchInput" 
+                class="search-input" 
+                placeholder="Search by PID, User Name, or State..." 
+                oninput="filterTable()"
+            />
+            <!-- Download Button -->
+            <button class="download-btn" onclick="downloadExcel()">Download Excel</button>
+        </div>
+
+        <!-- Table -->
+        <table id="cpuUsageTable">
+            <thead>
+                <tr>
+                    <th>PID</th>
+                    <th>CPU Usage</th>
+                    <th>User Name</th>
+                    <th>Process CPU Usage</th>
+                    <th>Memory Usage</th>
+                    <th>State</th>
+                    <th>Query</th>
+                    <th>Query Start</th>
+                    <th>Duration</th>
+                    <th>Created At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if data %}
+                    {% for row in data %}
+                        <tr>
+                            <td>{{ row.pid }}</td>
+                            <td>{{ row.cpu_usage }}</td>
+                            <td>{{ row.user_name }}</td>
+                            <td>{{ row.process_cpu_usage }}</td>
+                            <td>{{ row.mem_usage }}</td>
+                            <td>{{ row.state }}</td>
+                            <td>{{ row.query }}</td>
+                            <td>{{ row.query_start }}</td>
+                            <td>{{ row.duration }}</td>
+                            <td>{{ row.created_at }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="10" class="no-data">No matching records found.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <div class="pagination">
+            <button id="prevPage" onclick="changePage(-1)" disabled>Previous</button>
+            <span id="currentPage">1</span>
+            <button id="nextPage" onclick="changePage(1)" disabled>Next</button>
+        </div>
+
+        <!-- Total Records -->
+        <div class="total-records" id="totalRecords">
+            Total Records: {{ data|length }}
+        </div>
+    </div>
+
+    <script>
+        const table = document.getElementById('cpuUsageTable');
+        const rows = Array.from(table.querySelectorAll('tbody tr'));
+        const rowsPerPage = 10;
+        let currentPage = 1;
+
+        function renderPagination() {
+            const totalRows = rows.length;
+            const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = currentPage === totalPages;
+            document.getElementById('currentPage').textContent = currentPage;
+
+            rows.forEach((row, index) => {
+                const start = (currentPage - 1) * rowsPerPage;
+                const end = currentPage * rowsPerPage;
+
+                row.style.display = (index >= start && index < end && row.style.display !== 'none') ? '' : 'none';
+            });
+        }
+
+        function changePage(direction) {
+            currentPage += direction;
+            renderPagination();
+        }
+
+        function filterTable() {
+            const filter = document.getElementById('searchInput').value.toLowerCase();
+            rows.forEach(row => {
+                const rowText = row.textContent.toLowerCase();
+                if (rowText.includes(filter)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            currentPage = 1;
+            renderPagination();
+        }
+
+        function downloadExcel() {
+    // Get all rows, including hidden ones
+    const allRows = Array.from(document.querySelectorAll('#cpuUsageTable tbody tr'));
+    const allData = [];
+
+    // Add headers to the first row of the data
+    const headers = Array.from(document.querySelectorAll('#cpuUsageTable th'))
+        .map(header => header.textContent.trim());
+    allData.push(headers);
+
+    // Add each row's data to allData
+    allRows.forEach(row => {
+        const rowData = Array.from(row.cells)
+            .map(cell => cell.textContent.trim());
+        allData.push(rowData);
+    });
+
+    // Create the Excel workbook
+    const ws = XLSX.utils.aoa_to_sheet(allData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "CPU Usage");
+
+    // Export to Excel
+    XLSX.writeFile(wb, "cpu_usage_details.xlsx");
+}
+
+        renderPagination();
+    </script>
+</body>
+</html>

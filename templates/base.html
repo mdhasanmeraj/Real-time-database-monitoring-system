@@ -1,0 +1,167 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}My Django App{% endblock %}</title>
+    
+    <!-- Inline CSS for styling -->
+    <style>
+        /* Global reset for margins and padding */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Set the body to take full height */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Logo positioned on the extreme left corner */
+        .logo {
+            position: fixed; /* Fixes the logo on the left corner */
+            top: 20px; /* Distance from the top */
+            left: 20px; /* Distance from the left edge */
+            max-height: 100px; /* Control the size of the logo */
+            z-index: 1000; /* Ensures it appears on top of other content */
+        }
+
+        .logo2 {
+            position: fixed; /* Fixes the logo on the left corner */
+            top: 20px; /* Distance from the top */
+            right: 100px; /* Distance from the left edge */
+            max-height: 100px; /* Control the size of the logo */
+            z-index: 1000; /* Ensures it appears on top of other content */
+        }
+
+                .logo3 {
+            position: fixed; /* Keeps the logo fixed at the specified position */
+            bottom: 10px; /* Moves it closer to the bottom of the viewport */
+            left: 10px; /* Moves it closer to the left edge of the viewport */
+            max-height: 100px; /* Controls the size of the logo */
+            z-index: 1000; /* Ensures the logo is on top of other content */
+        }
+
+
+
+        /* Header styles */
+        header {
+            background-color: #5b8b5b;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            position: relative; /* Necessary for positioning logout link */
+        }
+
+        /* Logout link styles */
+        .logout-link {
+            text-decoration: none;
+            padding: 1px 4px;
+            background-color: #494747 !important;  /* Added !important to ensure color is applied */
+            color: rgb(189, 196, 194);
+            border-radius: 5px;
+            font-weight: bold;
+            position: absolute;  /* Absolute positioning */
+            bottom: 5px;  /* Distance from the bottom of the header */
+            right: 5px;  /* Distance from the right of the header */
+        }
+
+        /* Hover effect for the logout link */
+        .logout-link:hover {
+            background-color: #212427 !important; /* Added !important */
+        }
+        
+        /* Main content area */
+        main {
+            flex-grow: 1;  /* Allows content to take available space */
+            padding: 20px;
+        }
+
+        /* Footer styles */
+        footer {
+            background-color: #f1f1f1;
+            text-align: center;
+            padding: 10px;
+        }
+
+      
+        .username {
+            color: rgb(46, 46, 48);
+  }
+
+    </style>
+</head>
+<body>
+
+   
+
+  <!-- Header Section -->
+<header style="display: flex; align-items: center; justify-content: space-between; background-color: #576e52; padding: 10px; position: relative;">
+    <!-- Left Section: CRIS Logo -->
+    <div style="display: flex; align-items: center;">
+        <img src="{% static '/images/cris.png' %}" alt="CRIS Logo" style="max-height: 80px; margin-right: 10px;">
+    </div>
+    
+    <!-- Center Section: Title -->
+    <h1 style="margin: 0; position: absolute; left: 50%; transform: translateX(-50%); color: white;">Database Management Application</h1>
+    
+    <!-- Right Section: User Information and Final Logo -->
+    <div style="display: flex; align-items: center; text-align: right;">
+        <div style="margin-right: 10px;">
+            {% if user.is_authenticated %}
+                <p style="margin: 0; color: rgb(141, 138, 138);">Welcome, <span class="username" style="color: rgb(31, 31, 36);">{{ user.username }}</span> !</p>
+                <form method="POST" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" style="background: none; border: none; color: rgb(219, 215, 215); font-weight: bold;">Logout</button>
+                </form>
+                
+            {% else %}
+                <a href="{% url 'login' %}" style="text-decoration: none; color: green; font-weight: bold;">Login</a>
+            {% endif %}
+        </div>
+        <!-- Final Logo -->
+        <img src="{% static '/images/logo_final.png' %}" alt="Final Logo" style="max-height: 80px;">
+    </div>
+
+    
+</header>
+
+
+
+    
+
+    <!-- Main Content Section -->
+    <main>
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <!-- Footer Section -->
+    <footer style="background-color: #a7bbb1; padding: 10px; text-align: center; display: flex; align-items: center; justify-content: space-between;">
+        <!-- Logo -->
+        <img src="{% static '/images/django_logo.png' %}" alt="Logo" style="max-height: 50px; margin-left: 10px;">
+        
+        <!-- Footer Text -->
+        <div style="text-align: center; flex-grow: 1;">
+            <p style="margin: 0;">Powered by Django</p>
+            <p style="margin: 0;">&copy; 2025 CRIS. All rights reserved.</p>
+        </div>
+    </footer>
+
+    {% block extra_css %}
+    {% endblock %}
+
+    {% block extra_js %}
+    {% endblock %}
+
+</body>
+</html>

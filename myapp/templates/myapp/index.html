@@ -1,0 +1,1519 @@
+{% extends 'base.html' %}
+
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real-Time Database Performance Monitor</title>
+    <!-- <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+     
+      rel="stylesheet"
+    /> -->
+
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet" />
+    <style>
+      .reduced-gap {
+          margin-top: 0px;
+      }
+      .section {
+          display: none;
+      }
+      .monitor-info th {
+          background-color: #f4f4f4;
+      }
+      .circle {
+          display: block;
+          max-width: 200px;
+      }
+      .circle-container-wrapper {
+          display: flex;
+          justify-content: center;
+          gap: 80px;
+          flex-wrap: wrap; /* Allow wrapping for smaller screens */
+      }
+      .hover-cell {
+          position: relative;
+          cursor: pointer;
+      }
+      .tooltip {
+          visibility: hidden;
+          opacity: 0;
+          text-align: center;
+          border-radius: 5px;
+          padding: 5px;
+          position: absolute;
+          z-index: 1;
+          bottom: 125%;
+          left: 50%;
+          transform: translateX(-50%);
+          white-space: nowrap;
+          box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+          font-size: 12px;
+          transition: visibility 0s, opacity 0.3s ease;
+      }
+      .tooltip-green {
+          background-color: #4caf50;
+          color: white;
+      }
+      .tooltip-red {
+          background-color: #f44336;
+          color: white;
+      }
+      .hover-cell:hover .tooltip {
+          visibility: visible;
+          opacity: 1;
+      }
+      table.table-bordered {
+        border: 4px groove black; /* Creates a 3D effect */
+          border-collapse: collapse;
+      }
+      table.table-bordered td {
+          border: 1px solid black;
+      }
+      .table td {
+          word-wrap: break-word;
+          max-width: 300px;
+      }
+      #goToDashboard {
+          position: fixed;
+          top: 175px;
+          right: 20px;
+          background-color: #d3d3d3;
+          color: black;
+          padding: 15px 30px;
+          font-size: 18px;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+          box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+          transition: all 0.3s ease;
+      }
+      #goToDashboard:hover {
+          background-color: #45a049;
+          box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.5);
+          transform: scale(1.05);
+      }
+      #goToDashboard:focus {
+          outline: none;
+          border: 2px solid #2e7d32;
+      }
+
+      
+    h1.h3 {
+      font-family: 'Roboto', sans-serif; /* Use a professional font */
+      font-size: 2rem; /* Adjust font size as needed */
+      font-weight: 700;
+      background: linear-gradient(135deg,rgb(222, 216, 229),rgb(21, 94, 149)); /* Gradient background */
+      -webkit-background-clip: text; /* For Safari */
+      -webkit-text-fill-color: transparent; /* For Safari */
+      background-clip: text; /* For other browsers */
+      text-fill-color: transparent; /* For other browsers */
+      margin-bottom: 0; /* Remove bottom margin */
+  }
+  
+  </style>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> 
+  </head>
+  <body style="background: linear-gradient(135deg, rgb(222, 216, 229), rgb(21, 94, 149));"></body>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script> -->
+    <script src="{% static 'js/chart.min.js' %}"></script>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <!-- Header -->
+    
+    
+
+    <!-- Button Container -->
+   
+        <div style="position: relative; width: 100%;">
+
+          <span style="position: absolute; right: 0; margin: 0; padding: 10px;">Connected to Database: <strong>{{ database_name }}</strong></span> 
+        
+          <div class="container" style="display: flex; justify-content: center; align-items: center; width: 100%;">
+              <div class="btn-group">
+                  <button class="btn btn-success" onclick="toggleSection('slowQueriesSection')">
+                      Slow Running Queries ({{ slow_queries_count }})
+                  </button>
+                  <button class="btn btn-success" onclick="toggleSection('idleQueriesSection')">
+                      Idle Queries ({{ idle_queries_count }})
+                  </button>
+                  <button class="btn btn-success" onclick="toggleSection('tableBloatSection')">
+                      Table Bloat (20)
+                  </button>
+                  <button class="btn btn-success" onclick="toggleSection('locksSection')">
+                      Locks ({{ locks_count }})
+                  </button>
+                  <button class="btn btn-success" onclick="toggleSection('tableSizeSection')">
+                      Table Size (20)
+                  </button>
+                  <button class="btn btn-success" onclick="toggleSection('res_cons_quer_Section')">
+                      Resource Consuming Queries (20)
+                  </button>
+              </div>
+          </div>
+      </div>
+      <button id="goToDashboard">Resource Consumption Analysis</button>
+      {% if request.user.is_authenticated and request.user.is_superuser %}
+    <button id="goToUserManagement" class="btn btn-primary">User Management</button>
+{% endif %}
+
+    </div>
+
+    <script>
+      document.querySelectorAll('.update-role-form').forEach(form => {
+          form.addEventListener('submit', function(e) {
+              e.preventDefault();
+      
+              fetch(this.action, {
+                  method: 'POST',
+                  body: new FormData(this),
+                  headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+              })
+              .then(response => response.json())
+              .then(data => alert(data.message))
+              .catch(error => console.error("Error:", error));
+          });
+      });
+      </script>
+      
+
+    <script>
+      document.getElementById('goToDashboard').addEventListener('click', function() {
+          // Navigate to NEWDASHBOARD/index.html
+          window.location.href = 'http://127.0.0.1:8000/index_resource/';
+      });
+    </script>
+
+  <script>
+    document.getElementById('goToUserManagement').addEventListener('click', function() {
+        window.location.href = 'http://127.0.0.1:8000/admin-dashboard/'; // Replace with your actual route
+    });
+  </script>
+
+
+<!-- Restart Database Section -->
+<div class="text-center my-4">
+  <!-- <button id="restartDbBtn" class="btn btn-danger">Restart Database Server</button> -->
+</div>
+
+<script>
+  // Handle the restart button click
+  document.getElementById('restartDbBtn').addEventListener('click', function () {
+      // Confirm restart action
+      if (confirm("Are you sure you want to restart the database server?")) {
+          $.ajax({
+              url: "{% url 'restart_database' %}", // Django URL mapping
+              method: "POST",
+              data: {
+                  csrfmiddlewaretoken: '{{ csrf_token }}', // CSRF token for Django POST
+              },
+              success: function (response) {
+                  alert(response.message); // Notify success
+              },
+              error: function (xhr, status, error) {
+                  alert("An error occurred: " + xhr.responseJSON.message || error); // Notify failure
+              },
+          });
+      }
+  });
+</script>
+
+
+    <!-- Sections -->
+    <div class="container">
+      <!-- Slow Running Queries Section -->
+      <div id="slowQueriesSection" class="section">
+        <h2 class="text-center">Slow Running Queries</h2>
+        <div class="d-flex justify-content-end mb-3">
+          <button id="downloadCsvSlowQueries" class="btn btn-primary">Download CSV</button>
+        </div>
+        <table class="table table-bordered table-striped " id="slowQueriesTable">
+          <thead>
+            <tr>
+              <th>
+                PID
+                <span class="sort-arrow" data-column="0" style="cursor: pointer;">&#9650;</span>
+              </th>
+              <th>
+                App_Name
+                <span class="sort-arrow" data-column="1" style="cursor: pointer;">&#9650;</span>
+              </th>
+              <th>
+                Query
+                <span class="sort-arrow" data-column="2" style="cursor: pointer;">&#9650;</span>
+              </th>
+              <th>
+                Start Time
+                <span class="sort-arrow" data-column="3" style="cursor: pointer;">&#9650;</span>
+              </th>
+              <th>
+                Duration
+                <span class="sort-arrow" data-column="4" style="cursor: pointer;">&#9650;</span>
+              </th>
+              <th>
+                State
+                <span class="sort-arrow" data-column="5" style="cursor: pointer;">&#9650;</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if slow_queries %}
+              {% for query in slow_queries %}
+                <tr>
+                  <td>{{ query.0 }}</td>
+                  <td>{{ query.1 }}</td>
+                  <td>{{ query.2 }}</td>
+                  <td>{{ query.3 }}</td>
+                  <td>{{ query.4 }}</td>
+                  <td>{{ query.5 }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="6" class="text-center">No slow-running queries found.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <script>
+        document.addEventListener("DOMContentLoaded", function () {
+          // State to track sorting direction for each column
+          const columnSortDirections = {};
+      
+          // Add event listeners to all sort arrows
+          const sortArrows = document.querySelectorAll(".sort-arrow");
+          sortArrows.forEach(arrow => {
+            arrow.addEventListener("click", function () {
+              const columnIndex = parseInt(this.getAttribute("data-column"));
+              const table = document.getElementById("slowQueriesTable").getElementsByTagName("tbody")[0];
+              const rows = Array.from(table.rows);
+      
+              // Toggle sorting direction for the column
+              columnSortDirections[columnIndex] = !columnSortDirections[columnIndex];
+      
+              // Sort rows by the selected column
+              rows.sort((a, b) => {
+                const aText = a.cells[columnIndex].innerText.toLowerCase();
+                const bText = b.cells[columnIndex].innerText.toLowerCase();
+      
+                // Handle numeric and alphanumeric sorting
+                const isNumeric = !isNaN(aText) && !isNaN(bText);
+                if (isNumeric) {
+                  return columnSortDirections[columnIndex]
+                    ? parseFloat(aText) - parseFloat(bText)
+                    : parseFloat(bText) - parseFloat(aText);
+                } else {
+                  return columnSortDirections[columnIndex]
+                    ? aText.localeCompare(bText)
+                    : bText.localeCompare(aText);
+                }
+              });
+      
+              // Clear and reappend sorted rows
+              while (table.firstChild) {
+                table.removeChild(table.firstChild);
+              }
+              rows.forEach(row => table.appendChild(row));
+      
+              // Update arrow icons
+              sortArrows.forEach(arrow => (arrow.innerHTML = "&#9650;")); // Reset all arrows
+              this.innerHTML = columnSortDirections[columnIndex] ? "&#9650;" : "&#9660;"; // Set active arrow
+            });
+          });
+        });
+      </script>
+
+
+      <script>
+        // Function to convert table data to CSV and trigger download
+        document.getElementById("downloadCsvSlowQueries").addEventListener("click", function () {
+          // Get table data
+          var table = document.querySelector("#slowQueriesSection table");
+          var rows = table.getElementsByTagName("tr");
+          var csvContent = "";
+          
+          // Loop through rows and columns to collect data
+          for (var i = 0; i < rows.length; i++) {
+            var cells = rows[i].getElementsByTagName("td");
+            var rowData = [];
+            for (var j = 0; j < cells.length; j++) {
+              rowData.push('"' + cells[j].textContent.replace(/"/g, '""') + '"'); // Escape quotes
+            }
+            csvContent += rowData.join(",") + "\n";
+          }
+          
+          // Create a Blob from the CSV content
+          var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          
+          // Create a download link and trigger it
+          var link = document.createElement("a");
+          if (link.download !== undefined) { // feature detection
+            var url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "slow_queries.csv");
+            link.style.visibility = "hidden";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+        });
+      </script>
+
+      
+
+      <!-- Idle Queries Section -->
+      <div id="idleQueriesSection" class="section">
+        <h2 class="text-center">Idle Queries</h2>
+          <!-- Button to Export Data to CSV -->
+          <div class="d-flex justify-content-end mb-3">
+          <button id="downloadCsv" class="btn btn-primary ">Download CSV</button>
+          </div>
+          <table class="table table-bordered table-striped sortable-table" id="queriesTable">
+            <thead>
+              <tr>
+                <th>PID <span class="sort-arrow" data-column="0" style="cursor: pointer;">&#9650;</span>
+                </th>
+                <th>App_Name <span class="sort-arrow" data-column="1" style="cursor: pointer;">&#9650;</span>
+                </th>
+                <th>Query <span class="sort-arrow" data-column="2" style="cursor: pointer;">&#9650;</span></th>
+                <th>Start Time <span class="sort-arrow" data-column="3" style="cursor: pointer;">&#9650;</span></th>
+                <th>Duration <span class="sort-arrow" data-column="4" style="cursor: pointer;">&#9650;</span></th>
+                <th>State  <span class="sort-arrow" data-column="5" style="cursor: pointer;">&#9650;</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if idle_queries %}
+                {% for query in idle_queries %}
+                  <tr>
+                    <td>{{ query.0 }}</td>
+                    <td>{{ query.1 }}</td>
+                    <td>{{ query.2 }}</td>
+                    <td>{{ query.3 }}</td>
+                    <td>{{ query.4 }}</td>
+                    <td>{{ query.5 }}</td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="4" class="text-center">No idle queries found.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+
+        <script>
+          document.addEventListener("DOMContentLoaded", function () {
+            // Track sorting directions for each table and column
+            const sortDirections = {};
+        
+            // Function to initialize sorting for all tables
+            function initializeSorting() {
+              // Find all tables with the "sortable-table" class
+              const tables = document.querySelectorAll(".sortable-table");
+        
+              tables.forEach((table, tableIndex) => {
+                const sortArrows = table.querySelectorAll(".sort-arrow");
+        
+                sortArrows.forEach(arrow => {
+                  arrow.addEventListener("click", function () {
+                    const columnIndex = parseInt(this.getAttribute("data-column"));
+                    const tbody = table.getElementsByTagName("tbody")[0];
+                    const rows = Array.from(tbody.rows);
+        
+                    // Track sorting direction for the specific table and column
+                    sortDirections[`${tableIndex}-${columnIndex}`] = 
+                      !sortDirections[`${tableIndex}-${columnIndex}`];
+        
+                    // Sort rows based on the clicked column
+                    rows.sort((a, b) => {
+                      const aText = a.cells[columnIndex].innerText.toLowerCase();
+                      const bText = b.cells[columnIndex].innerText.toLowerCase();
+        
+                      const isNumeric = !isNaN(aText) && !isNaN(bText);
+                      if (isNumeric) {
+                        return sortDirections[`${tableIndex}-${columnIndex}`]
+                          ? parseFloat(aText) - parseFloat(bText)
+                          : parseFloat(bText) - parseFloat(aText);
+                      } else {
+                        return sortDirections[`${tableIndex}-${columnIndex}`]
+                          ? aText.localeCompare(bText)
+                          : bText.localeCompare(aText);
+                      }
+                    });
+        
+                    // Clear and reappend sorted rows
+                    while (tbody.firstChild) {
+                      tbody.removeChild(tbody.firstChild);
+                    }
+                    rows.forEach(row => tbody.appendChild(row));
+        
+                    // Reset all arrows for the current table
+                    sortArrows.forEach(arrow => (arrow.innerHTML = "&#9650;"));
+        
+                    // Update the current arrow
+                    this.innerHTML = sortDirections[`${tableIndex}-${columnIndex}`]
+                      ? "&#9650;"
+                      : "&#9660;";
+                  });
+                });
+              });
+            }
+        
+            // Initialize sorting
+            initializeSorting();
+          });
+        </script>
+        
+  
+      
+      <script>
+        // Function to convert table data to CSV and trigger download
+        document.getElementById("downloadCsv").addEventListener("click", function () {
+          // Get table data
+          var table = document.getElementById("queriesTable");
+          var rows = table.getElementsByTagName("tr");
+          var csvContent = "";
+          
+          // Loop through rows and columns to collect data
+          for (var i = 0; i < rows.length; i++) {
+            var cells = rows[i].getElementsByTagName("td");
+            var rowData = [];
+            for (var j = 0; j < cells.length; j++) {
+              rowData.push('"' + cells[j].textContent.replace(/"/g, '""') + '"'); // Escape quotes
+            }
+            csvContent += rowData.join(",") + "\n";
+          }
+          
+          // Create a Blob from the CSV content
+          var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          
+          // Create a download link and trigger it
+          var link = document.createElement("a");
+          if (link.download !== undefined) { // feature detection
+            var url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "idle_queries.csv");
+            link.style.visibility = "hidden";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+        });
+      </script>
+
+      <!-- Table Bloat Section -->
+      <div id="tableBloatSection" class="section">
+        <h2 class="text-center">Table Bloat</h2>
+        <div class="d-flex justify-content-end mb-3">
+          <button id="tableBloat" class="btn btn-primary ">Download CSV</button>
+        </div>
+        <table class="table table-bordered table-striped sortable-table" >
+          <thead>
+            <tr>
+              <th>Schema<span class="sort-arrow" data-column="0" style="cursor: pointer;">&#9650;</span>
+              </th>
+              <th>Table<span class="sort-arrow" data-column="1" style="cursor: pointer;">&#9650;</span>
+              </th>
+              <th>Total Size<span class="sort-arrow" data-column="2" style="cursor: pointer;">&#9650;</span>
+              </th>
+              <th>Bloat Size<span class="sort-arrow" data-column="3" style="cursor: pointer;">&#9650;</span>
+              </th>
+              <th>Vacuum<span class="sort-arrow" data-column="3" style="cursor: pointer;">&#9650;</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+                {% for table in table_bloat %}
+                <tr>
+                    <td>{{ table.0 }}</td>
+                    <td>{{ table.1 }}</td>
+                    <td id="total-size-{{ table.1 }}">{{ table.2 }}</td>
+                    <td id="bloat-size-{{ table.1 }}">{{ table.3 }}</td>
+                    <td>
+                        <button class="btn btn-warning vacuum-btn" data-schema="{{ table.0 }}" data-table="{{ table.1 }}">
+                            Vacuum
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+        </tbody>
+        </table>
+      </div>
+
+
+
+      {% comment %} <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll(".vacuum-btn").forEach(button => {
+                button.addEventListener("click", function () {
+                    let schema = this.dataset.schema;
+                    let table = this.dataset.table;
+                    let bloatCell = document.getElementById(`bloat-size-${table}`);
+                    let totalCell = document.getElementById(`total-size-${table}`);
+    
+                    fetch(`/vacuum/${schema}/${table}/`, {
+                        method: "POST",
+                        headers: {
+                            "X-CSRFToken": "{{ csrf_token }}",
+                            "Content-Type": "application/json"
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message);
+                            // Set Bloat Size to 0
+                            bloatCell.textContent = data.new_bloat_size; // Update with actual new bloat size
+                            //bloatCell.textContent = "0 B";
+
+                            // Update Total Size with New Value
+                            totalCell.textContent = data.new_total_size;
+                        } else {
+                            alert("Error: " + data.message);
+                        }
+                    })
+                    .catch(error => console.error("Error:", error));
+                });
+            });
+        });
+    </script> {% endcomment %}
+
+    <script>
+      document.querySelectorAll('.vacuum-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const schema = this.getAttribute('data-schema');
+            const table = this.getAttribute('data-table');
+    
+            fetch('/vacuum-table/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ schema: schema, table: table })
+            })
+            .then(response => response.json()) 
+            .then(data => {
+                console.log(data);  // Log response to check what comes from Django
+                if (data.success) {
+                    alert(`Vacuum completed for ${table}`);
+                    document.getElementById(`bloat-size-${table}`).innerText = '0'; 
+                } else {
+                    alert(`Vacuum failed for ${table}: ${data.error || 'Unknown error'}`);
+                }
+            })
+            .catch(error => console.error("Fetch error:", error));
+        });
+    });
+    
+  </script>
+      
+    
+    
+
+
+
+      {% comment %} <script>
+        // Function to convert table data to CSV and trigger download
+        document.getElementById("tableBloat").addEventListener("click", function () {
+          // Get table data
+          var table = document.querySelector("#tableBloatSection table");
+          var rows = table.getElementsByTagName("tr");
+          var csvContent = "";
+          
+          // Loop through rows and columns to collect data
+          for (var i = 0; i < rows.length; i++) {
+            var cells = rows[i].getElementsByTagName("td");
+            var rowData = [];
+            for (var j = 0; j < cells.length; j++) {
+              rowData.push('"' + cells[j].textContent.replace(/"/g, '""') + '"'); // Escape quotes
+            }
+            csvContent += rowData.join(",") + "\n";
+          }
+          
+          // Create a Blob from the CSV content
+          var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          
+          // Create a download link and trigger it
+          var link = document.createElement("a");
+          if (link.download !== undefined) { // feature detection
+            var url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "table_bloat.csv");
+            link.style.visibility = "hidden";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+        });
+      </script> {% endcomment %}
+
+
+
+      <!-- Locks Section -->
+      <div id="locksSection" class="section">
+        <h2 class="text-center">Locks</h2>
+
+        <div class="d-flex justify-content-end mb-3">
+          <button id="downloadCsvLocks" class="btn btn-primary ">Download CSV</button>
+        </div>
+        <table class="table table-bordered table-striped sortable-table">
+          <thead>
+            <tr>
+              <th>PID <span class="sort-arrow" data-column="0" style="cursor: pointer;">&#9650;</span></th>
+              <th>App_Name  <span class="sort-arrow" data-column="1" style="cursor: pointer;">&#9650;</span></th>
+              <th>Blocked Query  <span class="sort-arrow" data-column="2" style="cursor: pointer;">&#9650;</span></th>
+              <th>Query Start  <span class="sort-arrow" data-column="3" style="cursor: pointer;">&#9650;</span></th>
+              <th>Lock Mode  <span class="sort-arrow" data-column="4" style="cursor: pointer;">&#9650;</span></th>
+              <th>Lock Type  <span class="sort-arrow" data-column="5" style="cursor: pointer;">&#9650;</span></th>
+              <th>Rel_Name  <span class="sort-arrow" data-column="6" style="cursor: pointer;">&#9650;</span></th>
+              <th>Query_State  <span class="sort-arrow" data-column="7" style="cursor: pointer;">&#9650;</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if locks %} {% for l in locks %}
+            <tr>
+              <td>{{ l.0 }}</td>
+              <td>{{ l.1 }}</td>
+              <td>{{ l.2 }}</td>
+              <td>{{ l.3 }}</td>
+              <td>{{ l.4 }}</td>
+              <td>{{ l.5 }}</td>
+              <td>{{ l.6 }}</td>
+              <td>{{ l.7 }}</td>
+            </tr>
+            {% endfor %} {% else %}
+            <tr>
+              <td colspan="8" class="text-center">No Locks found.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+
+      <script>
+        // Function to convert table data to CSV and trigger download
+        document.getElementById("downloadCsvLocks").addEventListener("click", function () {
+          // Get table data
+          var table = document.querySelector("#locksSection table");
+          var rows = table.getElementsByTagName("tr");
+          var csvContent = "";
+          
+          // Loop through rows and columns to collect data
+          for (var i = 0; i < rows.length; i++) {
+            var cells = rows[i].getElementsByTagName("td");
+            var rowData = [];
+            for (var j = 0; j < cells.length; j++) {
+              rowData.push('"' + cells[j].textContent.replace(/"/g, '""') + '"'); // Escape quotes
+            }
+            csvContent += rowData.join(",") + "\n";
+          }
+          
+          // Create a Blob from the CSV content
+          var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          
+          // Create a download link and trigger it
+          var link = document.createElement("a");
+          if (link.download !== undefined) { // feature detection
+            var url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "locks.csv");
+            link.style.visibility = "hidden";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+        });
+      </script>
+
+      <!-- Table Size Section -->
+      <div id="tableSizeSection" class="section">
+        <h2 class="text-center">Table Size</h2>
+        <div class="d-flex justify-content-end mb-3">
+            <button id="downloadCsvTableSize" class="btn btn-primary">Download CSV</button>
+        </div>
+        <table class="table table-bordered table-striped sortable-table">
+            <thead>
+                <tr>
+                    <th>Schema Name</th>
+                    <th>Relation</th>
+                    <th>Size</th>
+                    <th>Retention Period (days)</th>
+                    <th>Action</th>
+                    <th>Archive</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if tableSize %}
+                    {% for s in tableSize %}
+                    <tr>
+                        <td>{{ s.0 }}</td>
+                        <td>{{ s.1 }}</td>
+                        <td>{{ s.2 }}</td>
+                        <td>
+                            <input type="number" class="form-control retention-period" 
+                                   data-table="{{ s.1 }}" value="30" min="1">
+                        </td>
+                        <td>{{ s.3 }}</td>
+                        <td>
+                            <button class="btn btn-warning archive-btn" 
+                                    data-table="{{ s.1 }}"
+                                    data-schema="{{ s.0 }}">Archive</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    
+    <script>
+    document.querySelectorAll('.archive-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const tableName = this.getAttribute('data-table');
+            const schemaName = this.getAttribute('data-schema');
+            const retentionPeriod = this.closest('tr').querySelector('.retention-period').value;
+    
+            if (confirm(`Are you sure you want to archive all data from ${schemaName}.${tableName}?`)) {
+                fetch('/archive_table/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        schema_name: schemaName,
+                        table_name: tableName,
+                        retention_period: retentionPeriod
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Table archived successfully');
+                        location.reload();
+                    } else {
+                        alert('Error archiving table: ' + data.error);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            }
+        });
+    });
+    </script>
+                        {% comment %} <td>
+                           <select class="retention-period" data-table="{{ s.1 }}">
+                                <option value="30" selected>30 (Default)</option>
+                                <option value="15">15</option>
+                                <option value="45">45</option>
+                                <option value="60">60</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                            <input type="number" class="custom-retention" data-table="{{ s.1 }}" placeholder="Custom Days" style="display:none;">
+                        </td> {% endcomment %}
+                      
+      
+
+
+    <!-- Resource Consuming Queries Section -->
+    <div id="res_cons_quer_Section" class="section">
+      <h2 class="text-center">Resource Consuming Queries</h2>
+      <div class="d-flex justify-content-end mb-3">
+        <button id="downloadCsvRes" class="btn btn-primary ">Download CSV</button>
+      </div>
+      <table class="table table-bordered table-striped sortable-table">
+        <thead>
+          <tr>
+            <th>Query  <span class="sort-arrow" data-column="0" style="cursor: pointer;">&#9650;</span></th>
+            <th>Calls  <span class="sort-arrow" data-column="1" style="cursor: pointer;">&#9650;</span></th>
+            <th>Total Execution Time(S)  <span class="sort-arrow" data-column="2" style="cursor: pointer;">&#9650;</span></th>
+            <th>Average Execution Time(S)  <span class="sort-arrow" data-column="3" style="cursor: pointer;">&#9650;</span></th>
+            <th>Maximun Execution Time(S)  <span class="sort-arrow" data-column="4" style="cursor: pointer;">&#9650;</span></th>
+            <th>Rows  <span class="sort-arrow" data-column="5" style="cursor: pointer;">&#9650;</span></th>
+            <th>Average Cache Hits (KB)  <span class="sort-arrow" data-column="6" style="cursor: pointer;">&#9650;</span></th>
+            <th>Average Disk Reads(KB)  <span class="sort-arrow" data-column="7" style="cursor: pointer;">&#9650;</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if res_cons_quer %} {% for q in res_cons_quer %}
+          <tr>
+            <td>{{ q.0 }}</td>
+            <td>{{ q.1 }}</td>
+            <td>{{ q.2 }}</td>
+            <td>{{ q.3 }}</td>
+            <td>{{ q.4 }}</td>
+            <td>{{ q.5 }}</td>
+            <td>{{ q.6 }}</td>
+            <td>{{ q.7 }}</td>
+          </tr>
+          {% endfor %} {% else %}
+          <tr>
+            <td colspan="8" class="text-center">No Queries found.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      // Function to convert table data to CSV and trigger download
+      document.getElementById("downloadCsvRes").addEventListener("click", function () {
+        // Get table data
+        var table = document.querySelector("#res_cons_quer_Section table");
+        var rows = table.getElementsByTagName("tr");
+        var csvContent = "";
+        
+        // Loop through rows and columns to collect data
+        for (var i = 0; i < rows.length; i++) {
+          var cells = rows[i].getElementsByTagName("td");
+          var rowData = [];
+          for (var j = 0; j < cells.length; j++) {
+            rowData.push('"' + cells[j].textContent.replace(/"/g, '""') + '"'); // Escape quotes
+          }
+          csvContent += rowData.join(",") + "\n";
+        }
+        
+        // Create a Blob from the CSV content
+        var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        
+        // Create a download link and trigger it
+        var link = document.createElement("a");
+        if (link.download !== undefined) { // feature detection
+          var url = URL.createObjectURL(blob);
+          link.setAttribute("href", url);
+          link.setAttribute("download", "res_consuming.csv");
+          link.style.visibility = "hidden";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      });
+    </script>
+
+
+    <!-- Active Users Modal -->
+<div class="modal fade" id="activeUsersModal" tabindex="-1" aria-labelledby="activeUsersModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg"> <!-- modal-lg for larger size -->
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="activeUsersModalLabel">Active Users on Database</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Table for Active Users -->
+        <table class="table table-bordered table-striped sortable-table" id="activeUsersTable" >
+          <thead>
+            <tr>
+              <th>PID <span class="sort-arrow" data-column="0" style="cursor: pointer;">&#9650;</span></th>
+              <th>UseSysID  <span class="sort-arrow" data-column="1" style="cursor: pointer;">&#9650;</span></th>
+              <th>UserName  <span class="sort-arrow" data-column="2" style="cursor: pointer;">&#9650;</span></th>
+              <th>Application Name  <span class="sort-arrow" data-column="3" style="cursor: pointer;">&#9650;</span></th>
+              <th>Client Address  <span class="sort-arrow" data-column="4" style="cursor: pointer;">&#9650;</span></th>
+              <th>Client Port  <span class="sort-arrow" data-column="5" style="cursor: pointer;">&#9650;</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if active_users %}
+              {% for user in active_users %}
+              <tr>
+                <td>{{ user.0 }}</td>
+                <td>{{ user.1 }}</td>
+                <td>{{ user.2 }}</td>
+                <td>{{ user.3 }}</td>
+                <td>{{ user.4 }}</td>
+                <td>{{ user.5 }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+            <tr>
+              <td colspan="6" class="text-center">No active users found.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="downloadCsvActiveUsers" class="btn btn-primary">Download CSV</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // Attach event listener to the Total Users metric
+    const totalUsersMetric = document.getElementById("totalUsersMetric");
+    totalUsersMetric.addEventListener("click", function () {
+      // Show the Active Users Modal
+      const activeUsersModal = new bootstrap.Modal(document.getElementById("activeUsersModal"));
+      activeUsersModal.show();
+    });
+  
+    // Export Active Users Table to CSV
+    document.getElementById("downloadCsvActiveUsers").addEventListener("click", function () {
+      const table = document.querySelector("#activeUsersTable");
+      const rows = table.getElementsByTagName("tr");
+      let csvContent = "";
+  
+      for (let i = 0; i < rows.length; i++) {
+        const cells = rows[i].getElementsByTagName("td");
+        const rowData = [];
+        for (let j = 0; j < cells.length; j++) {
+          rowData.push('"' + cells[j].textContent.replace(/"/g, '""') + '"');
+        }
+        csvContent += rowData.join(",") + "\n";
+      }
+  
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", "active_users.csv");
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+  });
+  
+</script>
+
+    <!-- Monitor Information Table -->
+    <div class="container my-4">
+      <h2 class="text-center">Server Information</h2>
+      <table class="table table-bordered">
+        <tbody>
+          <tr>
+            <td style="background-color: rgb(238, 144, 191);"><b>Name</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ database_name }}</td>
+            <td style="background-color: rgb(238, 144, 191);"><b>Server Uptime</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ uptime }}</td>
+            <td style="background-color: rgb(238, 144, 191);"><b>Server Start</b></td>
+
+            <td style="background-color: rgb(192, 240, 216);">
+              <span 
+                style="cursor: pointer;  color: blue;" 
+                data-bs-toggle="modal" 
+                data-bs-target="#db_stat_noModal">
+                {{ uptime_s }}
+              </span>
+            </td>
+            <!-- <td style="background-color: rgb(192, 240, 216);">{{ uptime_s }}</td> -->
+
+            {% for item in processed_res %}
+
+            <div class="modal fade" id="db_stat_noModal" tabindex="-1" aria-labelledby="osVersionModalLabel" aria-hidden="true">
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="osVersionModalLabel">Server Restart</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body">
+                    <p> No Of Times Database Server Restarted In Current Month : 
+                      <strong> <span style="color: red;">{{ ser_start_no }}</span>
+                      
+                    </strong></p>
+                    <!-- Add additional information if needed -->
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
+            
+  
+            
+            <td style="background-color: rgb(238, 144, 191);"> <b>CPU Usage(%)</b></td>
+
+            <td 
+                  style="background-color: {% if item.cpu_usage <= 95 %}lightgreen{% else %}lightcoral{% endif %};" 
+                  class="hover-cell">
+                  <strong> {{ item.cpu_usage|floatformat:2 }} </strong>
+                  <span class="tooltip {% if item.cpu_usage < 95 %}tooltip-green{% else %}tooltip-red{% endif %}">
+                      {% if item.cpu_usage > 95 %}
+                      Warning:  The system needs to be checked as the value is less than 95%.
+                      {% else %}
+                      System is operating normally.
+                      {% endif %}
+                  </span>
+            </td>
+            
+            <!-- <td class="{% if item.cpu_status %}text-success{% else %}text-danger{% endif %}">
+              <strong>  {{ item.cpu_usage }} </strong>
+            </td> -->
+            
+
+            <td style="background-color: rgb(238, 144, 191);"><b>RAM Usage(%)</b></td>
+
+            <td 
+                  style="background-color: {% if item.ram_usage <= 85 %}lightgreen{% else %}lightcoral{% endif %};" 
+                  class="hover-cell">
+                  <strong> {{ item.ram_usage|floatformat:2 }} </strong>
+                  <span class="tooltip {% if item.ram_status < 85 %}tooltip-green{% else %}tooltip-red{% endif %}">
+                      {% if item.ram_usage > 85 %}
+                      Warning:  The system needs to be checked as the value is less than 85%.
+                      {% else %}
+                      System is operating normally.
+                      {% endif %}
+                  </span>
+            </td>
+              
+            <!-- <td class="{% if item.ram_status %}text-success{% else %}text-danger{% endif %}">
+              
+              <strong>  {{ item.ram_usage }} </strong>
+           </td> -->
+              
+            {% endfor %}
+            
+            
+            
+            
+           
+            
+  
+  
+            
+
+
+          </tr>
+          <tr>
+            <td style="background-color: rgb(238, 144, 191);"><b>Port</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ port }}</td>
+            <td style="background-color: rgb(238, 144, 191);"><b>Database Version</b></td>
+
+            <td style="background-color: rgb(192, 240, 216);">
+              <span 
+                style="cursor: pointer; text-decoration: underline; color: blue;" 
+                data-bs-toggle="modal" 
+                data-bs-target="#datVersionModal">
+                {{ pg_version }}
+              </span>
+            </td>
+
+
+            <td style="background-color: rgb(238, 144, 191);"><b>Transactions Per Second</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ trans_per_sec|floatformat:2 }}</td>
+
+            {% for item in processed_res %}
+  
+            
+            <td style="background-color: rgb(238, 144, 191);"><b>Cache Usage(%)</b></td>
+
+            <td 
+                  style="background-color: {% if item.cache_usage > 60 %}lightgreen{% else %}lightcoral{% endif %};" 
+                  class="hover-cell">
+                  <strong> {{ item.cache_usage|floatformat:2 }} </strong>
+                  <span class="tooltip {% if item.cache_usage > 60 %}tooltip-green{% else %}tooltip-red{% endif %}">
+                      {% if item.cache_usage < 60 %}
+                      Warning:  The system needs to be checked as the value should be greater than 60%.
+                      {% else %}
+                      System is operating normally.
+                      {% endif %}
+                  </span>
+            </td>
+            <!-- <td class="{% if item.cache_status %}text-success{% else %}text-danger{% endif %}">
+              <strong> {{ item.cache_usage }} </strong>
+            </td> -->
+            <td style="background-color: rgb(238, 144, 191);"><b>Disk Usage(%)</b></td>
+
+            <td 
+                  style="background-color: {% if item.disk_usage <= 85 %}lightgreen{% else %}lightcoral{% endif %};" 
+                  class="hover-cell">
+                  <strong> {{ item.disk_usage|floatformat:2 }} </strong>
+                  <span class="tooltip {% if item.disk_usage < 85 %}tooltip-green{% else %}tooltip-red{% endif %}">
+                      {% if item.disk_usage > 85 %}
+                      Warning:  The system needs to be checked as the value is less than 85%.
+                      {% else %}
+                      System is operating normally.
+                      {% endif %}
+                  </span>
+            </td>
+              
+
+            <!-- <td class="{% if item.disk_status %}text-success{% else %}text-danger{% endif %}">
+              <strong>  {{ item.disk_usage }} </strong>
+           </td> -->
+              
+            {% endfor %}
+            
+            
+
+            {% if soft2 %} 
+            {% for b in soft2 %}
+  
+            
+            
+      <div class="modal fade" id="datVersionModal" tabindex="-1" aria-labelledby="osVersionModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="osVersionModalLabel">Database Version Details</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p>The Updated database version available is: {{ b.0 }} released on: {{ b.1 }} </strong></p>
+              <!-- Add additional information if needed -->
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  
+      {% endfor %} {% else %}
+            <tr>
+              <td colspan="3" class="text-center">No data found.</td>
+            </tr>
+            {% endif %}
+
+
+
+          </tr>
+          <tr>
+            <td style="background-color: rgb(238, 144, 191);"><b>UserName</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ user_name }}</td>
+            <td style="background-color: rgb(238, 144, 191);"><b>Total Users On the Database(Active)</b></td>
+
+            <td 
+                  id="totalUsersMetric"
+                  style="background-color: {% if user_count <= 1500 %}lightgreen{% else %}lightcoral{% endif %};" 
+                  class="hover-cell">
+                <strong> {{ user_count|floatformat:2 }} </strong>
+                  <span class="tooltip {% if user_count < 1500 %}tooltip-green{% else %}tooltip-red{% endif %}">
+                      {% if user_count > 1500 %}
+                      Warning:  The system needs to be checked as the value should be less than 1500.
+                      {% else %}
+                      System is operating normally.
+                      {% endif %}
+                  </span>
+            </td>
+            <!-- <td style="background-color: rgb(192, 240, 216);">{{ user_count }}</td> -->
+            <td style="background-color: rgb(238, 144, 191);"><b>Database Sessions(All)</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ session_count }}</td>
+  
+            {% for item in processed_res %}
+
+            <td style="background-color: rgb(238, 144, 191);"><b>CPU Load(1 Min)</b></td>
+
+
+            <td 
+                  style="background-color: {% if item.cpu_load_1_min <= 32 %}lightgreen{% else %}lightcoral{% endif %};" 
+                  class="hover-cell">
+                <strong> {{ item.cpu_load_1_min|floatformat:2 }} </strong>
+                  <span class="tooltip {% if item.ram_status < 32 %}tooltip-green{% else %}tooltip-red{% endif %}">
+                      {% if item.cpu_load_1_min > 32 %}
+                      Warning:  The system needs to be checked as the value is less than 32%.
+                      {% else %}
+                      System is operating normally.
+                      {% endif %}
+                  </span>
+            </td>
+              
+            <!-- <td class="{% if item.cpu_load_1_min_status %}text-success{% else %}text-danger{% endif %}">
+              <strong> {{ item.cpu_load_1_min }} </strong>
+            </td> -->
+            <td style="background-color: rgb(238, 144, 191);"><b>CPU Load(5 Min)</b></td>
+
+            <td 
+                  style="background-color: {% if item.cpu_load_5_min <= 30 %}lightgreen{% else %}lightcoral{% endif %};" 
+                  class="hover-cell">
+                  <strong>{{ item.cpu_load_5_min|floatformat:2 }} </strong>
+                  <span class="tooltip {% if item.ram_status < 30 %}tooltip-green{% else %}tooltip-red{% endif %}">
+                      {% if item.cpu_load_5_min > 30 %}
+                      Warning:  The system needs to be checked as the value is less than 30%.
+                      {% else %}
+                      System is operating normally.
+                      {% endif %}
+                  </span>
+            </td>
+              
+            <!-- <td class="{% if item.cpu_load_5_min_status %}text-success{% else %}text-danger{% endif %}">
+            <strong> {{ item.cpu_load_5_min }} </strong>
+            </td> -->
+              
+            {% endfor %}
+            
+
+          </tr>
+          
+          {% if bak %} 
+          {% for b in bak %}
+
+          <tr>
+            <td style="background-color: rgb(238, 144, 191);"><b>Last Backup Start</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ b.0 }}</td>
+            <td style="background-color: rgb(238, 144, 191);"><b>Backup End</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ b.1 }}</td>
+            <td style="background-color: rgb(238, 144, 191);"><b>Time Taken(In Mins)</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ b.2 }}</td>
+            <td style="background-color: rgb(238, 144, 191);"><b>Size(In GB)</b></td>
+
+            <td style="background-color: rgb(192, 240, 216);">
+              <span 
+                style="cursor: pointer;  color: blue;" 
+                data-bs-toggle="modal" 
+                data-bs-target="#sizeModal">
+                {{ b.3 }}
+              </span>
+            </td>
+            <!-- <td style="background-color: rgb(192, 240, 216);">{{ b.3 }}</td> -->
+            <td style="background-color: rgb(238, 144, 191);"><b>Status</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ b.4 }}</td>
+          </tr>
+          {% endfor %} {% else %}
+          <tr>
+            <td colspan="3" class="text-center">No data found.</td>
+          </tr>
+          {% endif %}
+
+
+          {% if file %} 
+          {% for f in file %}
+
+
+          <div class="modal fade" id="sizeModal" tabindex="-1" aria-labelledby="osVersionModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="osVersionModalLabel">Increase in backup Size</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <p> Backup size increase with previous backup size is:  
+                    <strong><span style="color: rgb(41, 87, 15);">{{ dsize }} MB</span> </strong>
+                    </p>
+                  <!-- Add additional information if needed -->
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <tr>
+            <td style="background-color: rgb(238, 144, 191);"><b>Mount Point</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ f.0 }}</td>
+            <td style="background-color: rgb(238, 144, 191);"><b>Size</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ f.1 }}</td>
+            <td style="background-color: rgb(238, 144, 191);"><b>Used</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ f.2 }}</td>
+            <td style="background-color: rgb(238, 144, 191);"><b>Time</b></td>
+            <td style="background-color: rgb(192, 240, 216);">{{ f.3 }}</td>
+            <td style="background-color: rgb(238, 144, 191);"><b>Os Version</b></td>
+            <td style="background-color: rgb(192, 240, 216);">
+              <span 
+                style="cursor: pointer; text-decoration: underline; color: blue;" 
+                data-bs-toggle="modal" 
+                data-bs-target="#osVersionModal">
+                {{ f.4 }}
+              </span>
+            </td>
+            
+          </tr>
+          {% endfor %} {% else %}
+          <tr>
+            <td colspan="3" class="text-center">No data found.</td>
+          </tr>
+          {% endif %}
+
+          
+
+          
+
+        </tbody>
+      </table>
+    </div>
+
+    {% if soft %} 
+          {% for b in soft %}
+
+          
+          
+    <div class="modal fade" id="osVersionModal" tabindex="-1" aria-labelledby="osVersionModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="osVersionModalLabel">OS Version Details</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>The Updated OS version available is: {{ b.0 }} released on: {{ b.1 }} </strong></p>
+            <!-- Add additional information if needed -->
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+
+    {% endfor %} {% else %}
+          <tr>
+            <td colspan="3" class="text-center">No data found.</td>
+          </tr>
+          {% endif %}
+
+    <!-- Circular Meters -->
+    <h3 class="text-center">Overall System Performance Metrics</h3>
+    <div class="circle-container-wrapper">
+      <!-- First Circular Meter -->
+      <div class="circle-container">
+        <svg class="circle" width="200" height="200" viewBox="0 0 200 200">
+          <circle
+            class="circle-background"
+            cx="100"
+            cy="100"
+            r="90"
+            stroke="#e6e6e6"
+            stroke-width="20"
+            fill="none"
+          />
+          <circle
+            id="progress-circle-1"
+            class="circle-progress"
+            cx="100"
+            cy="100"
+            r="90"
+            stroke="#4caf50"
+            stroke-width="20"
+            fill="none"
+            stroke-dasharray="565.48"
+            stroke-dashoffset="565.48"
+          />
+          <!-- Percentage Text -->
+          <text
+            class="percentage-text"
+            x="50%"
+            y="50%"
+            text-anchor="middle"
+            alignment-baseline="central"
+          >
+            {{ progress_value|floatformat:2 }}%
+          </text>
+        </svg>
+        <div class="load-label">
+          Normalized Connection Load: {{ progress_value|floatformat:2 }}%
+        </div>
+      </div>
+
+      <!-- Second Circular Meter -->
+      <div class="circle-container">
+        <svg class="circle" width="200" height="200" viewBox="0 0 200 200">
+          <circle
+            class="circle-background"
+            cx="100"
+            cy="100"
+            r="90"
+            stroke="#e6e6e6"
+            stroke-width="20"
+            fill="none"
+          />
+          <circle
+            id="progress-circle-2"
+            class="circle-progress"
+            cx="100"
+            cy="100"
+            r="90"
+            stroke="#4caf50"
+            stroke-width="20"
+            fill="none"
+            stroke-dasharray="565.48"
+            stroke-dashoffset="565.48"
+          />
+          <!-- Percentage Text -->
+          <text
+            class="percentage-text"
+            x="50%"
+            y="50%"
+            text-anchor="middle"
+            alignment-baseline="central"
+          >
+            {{ progress_value1|floatformat:2 }}%
+          </text>
+        </svg>
+        <div class="load-label">
+          Normalized Cache-Hit Ratio: {{ progress_value1|floatformat:2 }}%
+        </div>
+      </div>
+    </div>
+    <script>
+      function toggleSection(sectionId) {
+        // Get all sections
+        var sections = document.querySelectorAll(".section");
+
+        sections.forEach((section) => {
+          if (section.id === sectionId) {
+            // Toggle the clicked section
+            section.style.display = section.style.display === "none" ? "block" : "none";
+          } else {
+            // Hide other sections
+            section.style.display = "none";
+          }
+        });
+      }
+
+
+
+
+
+                  // Function to update the circular meter
+                  const progressValue = {{ progress_value }};
+                  const dashOffset1 = 565.48 - (565.48 * (progressValue / 100));
+                  const progressCircle1 = document.querySelector('#progress-circle-1');
+                  progressCircle1.style.strokeDashoffset = dashOffset1;
+
+                  // Change color based on progress for the first circle
+                  if (progressValue < 30) {
+                      progressCircle1.style.stroke = 'red';
+                  } else if (progressValue < 70) {
+                      progressCircle1.style.stroke = 'orange';
+                  } else {
+                      progressCircle1.style.stroke = 'green';
+                  }
+
+
+
+            const progressValue1 = {{ progress_value1|floatformat:2 }};
+            const dashOffset2 = 565.48 - (565.48 * (progressValue1 / 100));
+            const progressCircle2 = document.querySelector('#progress-circle-2');
+            progressCircle2.style.strokeDashoffset = dashOffset2;
+
+            // Change color based on progress for the second circle
+            if (progressValue1 < 30) {
+                progressCircle2.style.stroke = 'red';
+            } else if (progressValue1 < 70) {
+                progressCircle2.style.stroke = 'orange';
+            } else {
+                progressCircle2.style.stroke = 'green';
+            }
+    </script>
+  </body>
+</html>
+
+{% endblock %}
